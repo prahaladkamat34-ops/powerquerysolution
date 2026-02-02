@@ -1,0 +1,47 @@
+let
+    Source = Excel.CurrentWorkbook(){[Name="Table1"]}[Content],
+
+    PromoteHeaders = Table.PromoteHeaders(Source),
+
+    Unpivot = Table.UnpivotOtherColumns(PromoteHeaders,{"Brand","Model"},"Attribute","Value"),
+
+    AddColumn =   Table.AddColumn(
+                   Table.AddIndexColumn(Unpivot,"Index",0,1),
+                   "Custom",each Number.Mod([Index],2)),
+
+    TransformColumn =  Table.TransformColumnTypes(
+                       Table.TransformColumns(AddColumn,{"Index",each Number.IntegerDivide(_,2)}),
+                       {"Custom",type text}),
+
+    RemoveColumns = Table.RemoveColumns(TransformColumn,{"Attribute"}),
+
+    Distinct = List.Distinct(RemoveColumns[Custom]),
+
+    PivotColumns = Table.Pivot(RemoveColumns,Distinct,"Custom","Value"),
+
+    RemoveIndexColumns = Table.RemoveColumns(PivotColumns,{"Index"}),
+
+    ReplaceColl  = {{"0","Date"},{"1","Name"}},
+
+    RenameColumns = Table.RenameColumns(RemoveIndexColumns,ReplaceColl),
+
+    DemoteHeaders = Table.DemoteHeaders(RenameColumns),
+
+    First2 = Table.FirstN(DemoteHeaders,2),
+
+    Transpose = Table.Transpose(First2),
+
+    Add = Table.AddColumn(Transpose,"Type",each try if Text.Contains([Column1],"Date",Comparer.OrdinalIgnoreCase)
+                    then Date.From([Column2]) else Number.From([Column2]) otherwise [Column2]),
+
+    RemoveExtra = Table.RemoveColumns(Add,{"Column2"}),
+
+    Transform  = Table.TransformColumns(RemoveExtra,{"Type",each Value.Type(_)}),
+
+
+    Coll = Table.ToRows(Transform),
+
+    Columnstype = Table.TransformColumnTypes(RenameColumns,Coll)
+
+in
+    Columnstype
